@@ -123,3 +123,17 @@ function toggleCart() {
 }
 
 
+
+document.addEventListener("DOMContentLoaded", function () {
+    const flashMessages = document.querySelectorAll(".flash-message");
+
+    flashMessages.forEach((message) => {
+        setTimeout(() => {
+            message.classList.add("hide"); // Dodajemy klasę animacji
+            setTimeout(() => message.remove(), 500); // Usunięcie elementu po animacji
+        }, 3000); // Czas wyświetlania: 3 sekundy
+    });
+});
+
+
+

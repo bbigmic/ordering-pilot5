@@ -10,17 +10,92 @@ import qrcode
 import io
 from dotenv import load_dotenv
 from PIL import Image
+from functools import wraps  # Dodaj ten import na początku pliku
+from flask_login import UserMixin
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 
 load_dotenv()
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+# app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY", "defaultsecretkey")
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 app.config['UPLOAD_FOLDER'] = '/var/data/images'
+
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"  # Przekierowanie na stronę logowania
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username).first()
+
+        if user and check_password_hash(user.password, password):
+            login_user(user)
+            flash("Zalogowano pomyślnie", "success")
+            return redirect(url_for('admin_panel')) if user.is_admin else redirect(url_for('waiter_view'))
+        else:
+            flash("Błędne dane logowania", "danger")
+
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash("Wylogowano", "info")
+    return redirect(url_for('admin_panel'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = generate_password_hash(request.form['password'])
+        is_admin = 'is_admin' in request.form
+        is_employee = 'is_employee' in request.form
+
+        new_user = User(username=username, password=password, is_admin=is_admin, is_employee=is_employee)
+        db.session.add(new_user)
+        db.session.commit()
+
+        flash("Dodano nowego użytkownika", "success")
+        return redirect(url_for('admin_panel'))
+
+    return render_template('register.html')
+
+def admin_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_admin:
+            flash("Brak uprawnień do panelu administratora", "danger")
+            return redirect(url_for('home'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def employee_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not (current_user.is_admin or current_user.is_employee):
+            flash("Brak uprawnień", "danger")
+            return redirect(url_for('home'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 
 
 # Funkcja pomocnicza do generowania QR kodów
@@ -41,6 +116,13 @@ def generate_qr_code(link):
 class Table(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     qr_code = db.Column(db.String(100), unique=True)
+
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)  # Administrator
+    is_employee = db.Column(db.Boolean, default=False)  # Pracownik (kelner/kuchnia)
 
 
 class MenuItem(db.Model):
@@ -138,6 +220,8 @@ def home():
 
 
 @app.route('/admin/add_popup', methods=['POST'])
+@login_required
+@admin_required
 def add_popup():
     if 'popup_image' not in request.files:
         flash('Nie wybrano pliku', 'danger')
@@ -163,6 +247,8 @@ def add_popup():
         return redirect(url_for('admin_add_popup'))
 
 @app.route('/admin/popups')
+@login_required
+@admin_required
 def admin_add_popup():
     popup = Popup.query.first()
     return render_template('admin_popups.html', 
@@ -181,6 +267,8 @@ def popup_image():
 
 
 @app.route('/admin/toggle_popup', methods=['POST'])
+@login_required
+@admin_required
 def toggle_popup():
     popup = Popup.query.first()
     if popup:
@@ -264,6 +352,8 @@ def check_new_orders():
         return jsonify({"error": "Wystąpił błąd podczas pobierania zamówień"}), 500
 
 @app.route('/kitchen_view')
+@login_required
+@employee_required
 def kitchen_view():
     # Wyświetl widok kuchni
     return render_template('kitchen_view.html')
@@ -458,6 +548,8 @@ def order_status(order_id):
 
 # Widok kelnera
 @app.route('/waiter_view')
+@login_required
+@employee_required
 def waiter_view():
     # Pobieranie tylko zamówień oczekujących
     active_orders = Order.query.filter(Order.status != 'Completed').all()
@@ -473,6 +565,8 @@ def waiter_view():
     return render_template('waiter_view.html', orders=active_orders)
 
 @app.route('/order_history')
+@login_required
+@employee_required
 def order_history():
     # Pobieranie tylko zrealizowanych zamówień
     completed_orders = Order.query.filter_by(status='Completed').all()
@@ -506,6 +600,8 @@ def update_order_status(order_id):
 
 # Panel administratora
 @app.route('/admin')
+@login_required
+@admin_required
 def admin_panel():
     menu_items = MenuItem.query.all()
     return render_template('admin_panel.html', menu_items=menu_items)
@@ -513,6 +609,8 @@ def admin_panel():
 
 # Dodawanie nowego dania
 @app.route('/add_menu_item', methods=['POST'])
+@login_required
+@admin_required
 def add_menu_item():
     name = request.form['name']
     description = request.form.get('description', '')  # Pusty ciąg, jeśli brak opisu
@@ -599,6 +697,8 @@ def delete_menu_item(item_id):
     return redirect(url_for('admin_panel'))
 
 @app.route('/admin/add_tables', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def add_tables():
     if request.method == 'POST':
         table_count = int(request.form['table_count'])
@@ -634,6 +734,8 @@ def add_tables():
     return render_template('admin_add_tables.html', tables=tables)
 
 @app.route('/admin/add_events', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def add_events():
     if request.method == 'POST':
         title = request.form['title']
@@ -670,6 +772,8 @@ def add_events():
     return render_template('admin_add_events.html', events=events)
 
 @app.route('/delete_event/<int:event_id>', methods=['POST'])
+@login_required
+@admin_required
 def delete_event(event_id):
     event = Event.query.get_or_404(event_id)
     if event.image:
@@ -682,6 +786,8 @@ def delete_event(event_id):
     return redirect(url_for('add_events'))
 
 @app.route('/admin/edit_event/<int:event_id>', methods=['POST'])
+@login_required
+@admin_required
 def edit_event(event_id):
     event = Event.query.get_or_404(event_id)
 
@@ -812,5 +918,5 @@ def uploaded_file(filename):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(host='0.0.0.0', port=5000)
-    # app.run(debug=True, port=5001)
+    # app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True, port=5001)

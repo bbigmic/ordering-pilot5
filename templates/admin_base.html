@@ -12,13 +12,20 @@
     <div class="admin-container">
         <!-- Sidebar -->
         <nav class="sidebar">
+        <div class="menu-container">
             <button class="toggle-sidebar" onclick="toggleSidebar()">&#9776;</button>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('logout') }}">Wyloguj</a>
+            {% endif %}
+        </div>
+
+
             <div class="uls">
                 <h2>Panel Administratora</h2><hr>
 
                 <div class="only-worker-ul">
                     <ul>
-                        <li class="sidebar-item"><a href="http://papu.kitchen/">Strona Główna Restauracji</a></li>
+                        <li class="sidebar-item"><a href="https://papu.kitchen/">Strona Główna Restauracji</a></li>
 <!--                         <li class="sidebar-item"><a href="{{ url_for('waiter_view') }}">Widok Kelnera</a></li>
                         <li class="sidebar-item"><a href="{{ url_for('kitchen_view') }}">Widok Kuchni</a></li>
                         <li class="sidebar-item"><a href="http://ordering-deploy.onrender.com/menu/2">Zamawianie</a></li> -->

@@ -11,10 +11,14 @@
     {% if not request.path.startswith('/menu') and not request.path.startswith('/order_status') %}
     <nav class="navbar">
         <div class="navbar-container">
-            <a href="/menu/1" class="nav-link">Menu</a>
+<!--             <a href="/menu/1" class="nav-link">Menu</a>
             <a href="/waiter_view" class="nav-link">Widok Kelnera</a>
-            <a href="/kitchen_view" class="nav-link">Widok Kuchni</a>
+            <a href="/kitchen_view" class="nav-link">Widok Kuchni</a> -->
             <a href="/admin" class="nav-link">Panel Administratora</a>
+            {% if current_user.is_authenticated %}
+                <a href="/logout" class="nav-link-logout">Wyloguj</a>
+            {% endif %}
+
         </div>
     </nav>
     {% endif %}

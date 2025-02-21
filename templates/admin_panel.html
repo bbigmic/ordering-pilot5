@@ -11,6 +11,16 @@
     Kategorie "Lunch dnia" i "Deser dnia" wymagają ustawienia daty wyświetlania.
 </p>
 
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flash-messages">
+      {% for category, message in messages %}
+        <div class="flash-message {{ category }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
 
 <h2>Dodaj Nowe Danie</h2>
 <form action="/add_menu_item" method="POST" enctype="multipart/form-data" class="form">
@@ -143,5 +153,19 @@
     }
 
 </script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const flashMessages = document.querySelectorAll(".flash-message");
+
+    flashMessages.forEach((message) => {
+        setTimeout(() => {
+            message.classList.add("hide"); // Dodajemy klasę animacji
+            setTimeout(() => message.remove(), 500); // Usunięcie elementu po animacji
+        }, 3000); // Czas wyświetlania: 3 sekundy
+    });
+});
+</script>
+
 
 {% endblock %}

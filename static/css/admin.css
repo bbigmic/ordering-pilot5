@@ -99,6 +99,7 @@ button:hover {
 
 input[type="text"],
 input[type="number"],
+input[type="password"],
 textarea,
 button {
     width: 100%;

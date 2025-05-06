@@ -28,7 +28,7 @@
                         <li class="sidebar-item sidebar-item-enabled"><a href="/">Strona Główna Restauracji</a></li>
                         <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('waiter_view') }}">Widok Kelnera</a></li>
                         <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('kitchen_view') }}">Widok Kuchni</a></li>
-                        <li class="sidebar-item sidebar-item-enabled">
+                        <!-- <li class="sidebar-item sidebar-item-enabled">
                             <button class="order-toggle-btn" onclick="toggleOrderDropdown()">
                                 <span id="order-arrow" class="arrow">&#9654;</span> Zamawianie
                             </button>
@@ -41,8 +41,9 @@
                                     <li><em>Brak dostępnych stolików</em></li>
                                 {% endif %}
                             </ul>
-                        </li>
+                        </li> -->
                         <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('menu_online_order') }}">📲 Zamawianie Online</a></li>
+                        <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('choose_order_type') }}">📲 Zamawianie Online</a></li>
                     </ul>
                 </div>
                 <hr>

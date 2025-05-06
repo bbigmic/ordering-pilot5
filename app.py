@@ -939,25 +939,11 @@ def add_tables():
                 # Usuń nadmiarowe stoliki
                 tables_to_remove = Table.query.filter(Table.id > table_count).all()
                 for table in tables_to_remove:
-                    # Usuń plik QR kodu
-                    qr_path = os.path.join(app.config['UPLOAD_FOLDER'], f"table_{table.id}.png")
-                    if os.path.exists(qr_path):
-                        os.remove(qr_path)
                     db.session.delete(table)
                     # Commit po każdym usuniętym stoliku
                     db.session.commit()
 
-            # Generowanie jednego unikalnego kodu QR dla /choose_order_type
-            link = url_for('choose_order_type', _external=True)
-            img = generate_qr_code(link, "main")
-
-            # Zapis QR kodu do katalogu produkcyjnego
-            qr_folder = app.config['UPLOAD_FOLDER']
-            os.makedirs(qr_folder, exist_ok=True)
-            qr_path = os.path.join(qr_folder, "main_qr.png")
-            img.save(qr_path)
-
-            flash(f'Zaktualizowano liczbę stolików na {table_count} i wygenerowano nowy kod QR.', 'success')
+            flash(f'Zaktualizowano liczbę stolików na {table_count}.', 'success')
             return redirect(url_for('add_tables'))
             
         except Exception as e:
@@ -1206,5 +1192,14 @@ def check_order_status(order_id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        
+        # Generowanie kodu QR przy pierwszym uruchomieniu
+        qr_path = os.path.join(app.config['UPLOAD_FOLDER'], "main_qr.png")
+        if not os.path.exists(qr_path):
+            link = url_for('choose_order_type', _external=True)
+            img = generate_qr_code(link, "main")
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            img.save(qr_path)
+    
     app.run(host='0.0.0.0', port=5000)
     # app.run(debug=True, port=5001)

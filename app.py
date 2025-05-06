@@ -106,7 +106,7 @@ def generate_qr_code(link, table_id):
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_H,  # Zwiększona korekcja błędów
-        box_size=20,  # Zwiększona rozdzielczość
+        box_size=10,  # Zwiększona rozdzielczość
         border=4,
     )
     qr.add_data(link)

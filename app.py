@@ -919,42 +919,51 @@ def delete_menu_item(item_id):
 @admin_required
 def add_tables():
     if request.method == 'POST':
-        table_count = int(request.form['table_count'])
+        try:
+            table_count = int(request.form['table_count'])
+            
+            # Pobierz aktualną liczbę stolików
+            current_tables = Table.query.count()
+            
+            if table_count > current_tables:
+                # Dodaj tylko nowe stoliki
+                for i in range(current_tables + 1, table_count + 1):
+                    new_table = Table(
+                        id=i,
+                        qr_code=f"table_{i}",
+                    )
+                    db.session.add(new_table)
+                    # Commit po każdym dodanym stoliku
+                    db.session.commit()
+            elif table_count < current_tables:
+                # Usuń nadmiarowe stoliki
+                tables_to_remove = Table.query.filter(Table.id > table_count).all()
+                for table in tables_to_remove:
+                    # Usuń plik QR kodu
+                    qr_path = os.path.join(app.config['UPLOAD_FOLDER'], f"table_{table.id}.png")
+                    if os.path.exists(qr_path):
+                        os.remove(qr_path)
+                    db.session.delete(table)
+                    # Commit po każdym usuniętym stoliku
+                    db.session.commit()
 
-        # Usuń wszystkie istniejące stoliki i ich kody QR
-        existing_tables = Table.query.all()
-        for table in existing_tables:
-            # Usuń plik QR kodu
-            qr_path = os.path.join(app.config['UPLOAD_FOLDER'], f"table_{table.id}.png")
-            if os.path.exists(qr_path):
-                os.remove(qr_path)
-            # Usuń stolik z bazy
-            db.session.delete(table)
-        
-        db.session.commit()
+            # Generowanie jednego unikalnego kodu QR dla /choose_order_type
+            link = url_for('choose_order_type', _external=True)
+            img = generate_qr_code(link, "main")
 
-        # Utwórz nowe stoliki od 1 do table_count
-        for i in range(1, table_count + 1):
-            new_table = Table(
-                id=i,
-                qr_code=f"table_{i}",
-            )
-            db.session.add(new_table)
+            # Zapis QR kodu do katalogu produkcyjnego
+            qr_folder = app.config['UPLOAD_FOLDER']
+            os.makedirs(qr_folder, exist_ok=True)
+            qr_path = os.path.join(qr_folder, "main_qr.png")
+            img.save(qr_path)
 
-        db.session.commit()
-
-        # Generowanie jednego unikalnego kodu QR dla /choose_order_type
-        link = url_for('choose_order_type', _external=True)
-        img = generate_qr_code(link, "main")
-
-        # Zapis QR kodu do katalogu produkcyjnego
-        qr_folder = app.config['UPLOAD_FOLDER']
-        os.makedirs(qr_folder, exist_ok=True)
-        qr_path = os.path.join(qr_folder, "main_qr.png")
-        img.save(qr_path)
-
-        flash(f'Zaktualizowano liczbę stolików na {table_count} i wygenerowano nowy kod QR.', 'success')
-        return redirect(url_for('add_tables'))
+            flash(f'Zaktualizowano liczbę stolików na {table_count} i wygenerowano nowy kod QR.', 'success')
+            return redirect(url_for('add_tables'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Wystąpił błąd podczas aktualizacji stolików: {str(e)}', 'error')
+            return redirect(url_for('add_tables'))
 
     # Pobierz wszystkie istniejące stoliki z bazy
     tables = Table.query.all()

@@ -10,3 +10,4 @@ gunicorn
 psycopg2-binary
 qrcode[pil]
 flask-login
+stripe

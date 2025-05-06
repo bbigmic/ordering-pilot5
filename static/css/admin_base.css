@@ -49,17 +49,39 @@ body {
 }
 
 .sidebar-item:hover {
-    background-color: #555; /* Zmiana koloru tła przy najechaniu */
-    cursor: pointer;
-        border: 1px solid #ddd; /* Kolor i styl obramowania */
+
 
 }
 
 .sidebar-item.active {
+
+}
+
+.sidebar-item-enabled a:hover {
+    background-color: #555; /* Zmiana koloru tła przy najechaniu */
+    cursor: pointer;
+
+}
+
+
+
+.sidebar-item-enabled{
+    background-color: #333;
+}
+
+.sidebar-item-enabled.active {
     border: 2px solid #ddd; /* Jasne niebieskie obramowanie */
     background-color: #333;    /* Opcjonalnie ciemniejsze tło */
 }
 
+.sidebar-item-disabled {
+    background-color: #333;    /* Opcjonalnie ciemniejsze tło */
+}
+
+.sidebar-item-disabled:hover {
+
+    cursor: default;  
+}
 
 .sidebar {
     width: 250px;
@@ -129,7 +151,7 @@ body {
 }
 
 .sidebar ul li {
-    margin: 15px 0;
+    margin: 8px 0;
 }
 
 .sidebar ul li a {

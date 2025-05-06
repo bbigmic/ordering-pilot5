@@ -25,6 +25,8 @@
             <option value="BLIK">BLIK</option>
         </select>
 
+        <h3>Suma do zapłaty: <b>{{ "%.2f"|format(order.total_price) }} PLN</b></h3>
+        
         <h3>Potrzebujesz faktury?</h3>
         <label>
             <input type="checkbox" id="invoice-checkbox" onchange="toggleInvoiceField()"> Tak

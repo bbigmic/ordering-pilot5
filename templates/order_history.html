@@ -26,8 +26,66 @@
                 </ul>
             </div>
         {% endfor %}
+
+        <!-- Nawigacja paginacji -->
+        <div class="pagination">
+            {% if pagination.has_prev %}
+                <a href="{{ url_for('order_history', page=pagination.prev_num) }}" class="page-link">&laquo; Poprzednia</a>
+            {% endif %}
+
+            {% for page_num in pagination.iter_pages(left_edge=2, left_current=2, right_current=3, right_edge=2) %}
+                {% if page_num %}
+                    {% if page_num == pagination.page %}
+                        <span class="page-link active">{{ page_num }}</span>
+                    {% else %}
+                        <a href="{{ url_for('order_history', page=page_num) }}" class="page-link">{{ page_num }}</a>
+                    {% endif %}
+                {% else %}
+                    <span class="page-link dots">...</span>
+                {% endif %}
+            {% endfor %}
+
+            {% if pagination.has_next %}
+                <a href="{{ url_for('order_history', page=pagination.next_num) }}" class="page-link">Następna &raquo;</a>
+            {% endif %}
+        </div>
     {% else %}
         <p>Brak zrealizowanych zamówień do wyświetlenia.</p>
     {% endif %}
 </div>
+
+<style>
+.pagination {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.page-link {
+    display: inline-block;
+    padding: 8px 16px;
+    margin: 0 4px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #333;
+    background-color: #fff;
+    transition: all 0.3s ease;
+}
+
+.page-link:hover {
+    background-color: #f5f5f5;
+    border-color: #999;
+}
+
+.page-link.active {
+    background-color: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+}
+
+.page-link.dots {
+    border: none;
+    padding: 8px 12px;
+}
+</style>
 {% endblock %}

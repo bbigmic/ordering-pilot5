@@ -5,6 +5,63 @@ body {
     background-color: #f4f4f4;
 }
 
+
+
+.order-toggle-btn {
+    background-color: #444 !important;
+    color: white;
+    border: none;
+    padding: 10px;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    font-size: 1rem;
+    margin: 0 !important;
+    transition: background-color 0.3s;
+    border-radius: 5px;
+}
+
+.order-toggle-btn:hover {
+    background-color: #555 !important;
+}
+
+
+.order-dropdown {
+    display: none;
+
+    list-style-type: none;
+    padding: 0;
+    margin: 0 !important;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.order-dropdown li {
+    border-bottom: 1px solid #ddd;
+}
+
+.order-dropdown li a {
+    display: block;
+    padding: 10px;
+    text-decoration: none;
+    color: #333;
+}
+
+.order-dropdown li a:hover {
+    background-color: #ddd;
+}
+
+
+/* Animacja strzałki */
+.arrow {
+    transition: transform 0.3s ease-in-out;
+    display: inline-block; /* Zapewnia poprawne obracanie */
+}
+
+.arrow.open {
+    transform: rotate(90deg);
+}
+
 .edit-form {
     background: #fff;
     padding: 1rem;
@@ -233,4 +290,84 @@ button {
 
 .checkbox:active ~ .slider::before {
   transform: translate(0);
+}
+
+/* Style dla elementów select */
+select {
+    width: 100%;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    background-color: #fff;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1em;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+select:hover {
+    border-color: #28a745;
+}
+
+select:focus {
+    outline: none;
+    border-color: #28a745;
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
+}
+
+select option {
+    padding: 0.5rem;
+    font-size: 1rem;
+    background-color: #fff;
+    color: #333;
+}
+
+select option:hover {
+    background-color: #f5f5f5;
+}
+
+select option:checked {
+    background-color: #28a745;
+    color: #fff;
+}
+
+/* Style dla select w formularzach */
+.form select {
+    margin-bottom: 1rem;
+}
+
+/* Style dla select w trybie ciemnym */
+.dark-mode select {
+    background-color: #333;
+    color: #fff;
+    border-color: #555;
+}
+
+.dark-mode select option {
+    background-color: #333;
+    color: #fff;
+}
+
+.dark-mode select option:hover {
+    background-color: #444;
+}
+
+.dark-mode select option:checked {
+    background-color: #28a745;
+    color: #fff;
+}
+
+/* Responsywność dla select */
+@media (max-width: 768px) {
+    select {
+        font-size: 16px; /* Zapobiega zoomowaniu na iOS */
+        padding: 0.5rem;
+    }
 }

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Wybierz Rodzaj Zamówienia{% endblock %}
+
+{% block content %}
+<h1>Wybierz rodzaj zamówienia</h1>
+
+<div class="form">
+    <h2>Zamówienie do stolika</h2>
+    <form onsubmit="event.preventDefault(); const tableId = document.getElementById('table_id').value; window.location.href = '/menu/' + tableId;">
+        <label for="table_id">Wybierz numer stolika:</label>
+        <select name="table_id" id="table_id" required>
+            {% for table in tables %}
+                <option value="{{ table.id }}">Stolik nr {{ table.id }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Przejdź do menu</button>
+    </form>
+
+</div>
+
+<!-- <div class="form">
+    <h2>Zamówienie online (na wynos / dostawa)</h2>
+    <a href="{{ url_for('menu_online_order') }}">
+        <button>Przejdź do zamówienia online</button>
+    </a>
+</div> -->
+{% endblock %}

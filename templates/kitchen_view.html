@@ -3,13 +3,51 @@
 {% block title %}Widok Kuchni{% endblock %}
 
 {% block content %}
-<h1>Widok Kuchni</h1>
-
-<div id="accepted-orders" class="orders">
-    <!-- Dynamicznie ładowane zamówienia ze statusem "Accepted" -->
+<div class="header-container">
+    <h1>Widok Kuchni</h1>
+    <div class="sound-controls">
+        <button id="toggleSound" class="sound-btn">🔊 Włącz dźwięki</button>
+    </div>
 </div>
 
+<div id="accepted-orders" class="orders">
+    <!-- Dynamicznie ładowane zamówienia ze statusem "Accepted" i "In Preparation" -->
+</div>
+
+<audio id="kitchenOrderSound" src="{{ url_for('static', filename='sounds/kitchen_sound.wav') }}" preload="auto"></audio>
+
 <script>
+    const displayedKitchenOrders = new Set();
+    let soundEnabled = false;
+
+    function generateOrderHTML(order) {
+        let tableInfo = order.table_id
+            ? `Stolik nr ${order.table_id}`
+            : `<span style="color: red;">Zamówienie online (DOSTAWA)</span>`;
+
+        return `
+            <h2>Zamówienie nr ${order.order_number} - ${tableInfo}</h2>
+            <p>Status: ${order.status} <a> id: ${order.order_id}</a></p>
+            <p>Łączna cena: ${order.total_price} PLN</p>
+            <p>Godzina zamówienia: ${order.order_time}</p>
+            <h3>Szczegóły zamówienia:</h3>
+            <ul>
+                ${order.items.map(item => `
+                    <li>
+                        ${item.name} - Ilość: ${item.quantity} - Cena: ${item.price} PLN
+                        ${item.takeaway ? `<strong>[Na wynos]</strong>` : ""}
+                        ${item.customization ? `<br><em>Personalizacja: ${item.customization}</em>` : ""} <hr>
+                    </li>
+                `).join("")}
+            </ul>
+            ${order.status === "In Preparation" ? `
+                <button onclick="markOrderAsReady(${order.order_id})" class="status-btn-secondary">
+                    Gotowe
+                </button>
+            ` : ""}
+        `;
+    }
+
     function fetchAcceptedOrders() {
         fetch('/check_accepted_orders')
             .then(response => {
@@ -20,37 +58,190 @@
             })
             .then(orders => {
                 const ordersDiv = document.getElementById("accepted-orders");
-                ordersDiv.innerHTML = ""; // Wyczyść poprzednie zamówienia
 
+                // 1. Zapisujemy aktualne order IDs z backendu
+                const currentOrderIds = orders.map(order => order.order_id);
+
+                // 2. Usuwamy z DOM zamówienia, których już nie ma
+                const existingOrderDivs = ordersDiv.querySelectorAll(".order");
+                existingOrderDivs.forEach(orderDiv => {
+                    const orderId = parseInt(orderDiv.id.replace("order-", ""));
+                    if (!currentOrderIds.includes(orderId)) {
+                        orderDiv.remove();
+                    }
+                });
+
+                // 3. Przechodzimy po zamówieniach z backendu
                 orders.forEach(order => {
-                    const orderDiv = document.createElement("div");
-                    orderDiv.classList.add("order");
-                    orderDiv.id = `order-${order.order_id}`;
+                    const existingOrderDiv = document.getElementById(`order-${order.order_id}`);
 
-                    orderDiv.innerHTML = `
-                        <h2>Zamówienie nr ${order.order_number} - Stolik nr ${order.table_id}</h2>
-                        <p>Status: ${order.status} <a> id: ${order.order_id}</a></p>
-                        <p>Łączna cena: ${order.total_price} PLN</p>
-                        <p>Godzina zamówienia: ${order.order_time}</p>
-                        <h3>Szczegóły zamówienia:</h3>
-                        <ul>
-                            ${order.items.map(item => `
-                                <li>
-                                    ${item.name} - Ilość: ${item.quantity} - Cena: ${item.price} PLN
-                                    ${item.takeaway ? `<strong>[Na wynos]</strong>` : ""}
-                                    ${item.customization ? `<br><em>Personalizacja: ${item.customization}</em>` : ""} <hr>
-                                </li>
-                            `).join("")}
-                        </ul>
-                    `;
-                    ordersDiv.appendChild(orderDiv);
+                    if (!existingOrderDiv) {
+                        // 🔵 Zamówienie nie istnieje, tworzymy nowe
+                        const orderDiv = document.createElement("div");
+                        orderDiv.classList.add("order");
+                        orderDiv.id = `order-${order.order_id}`;
+                        orderDiv.style.cursor = 'pointer';
+
+                        orderDiv.addEventListener('click', () => {
+                            const statusElement = orderDiv.querySelector('p');
+                            if (statusElement && statusElement.textContent.includes('Accepted')) {
+                                markOrderInPreparation(order.order_id);
+                            }
+                        });
+
+                        // Styl zależnie od statusu
+                        if (order.status === "In Preparation") {
+                            orderDiv.style.backgroundColor = '#fff3cd';
+                        } else {
+                            orderDiv.style.backgroundColor = '';
+                        }
+
+                        orderDiv.innerHTML = generateOrderHTML(order);
+                        ordersDiv.appendChild(orderDiv);
+
+                        // 🎵 Dźwięk dla nowego zamówienia
+                        const audio = document.getElementById('kitchenOrderSound');
+                        if (audio) {
+                            audio.play().catch(error => console.log("Audio play error:", error));
+                        }
+                    } else {
+                        // 🟢 Zamówienie już istnieje, AKTUALIZUJEMY jego zawartość
+                        if (order.status === "In Preparation") {
+                            existingOrderDiv.style.backgroundColor = '#fff3cd';
+                        } else {
+                            existingOrderDiv.style.backgroundColor = '';
+                        }
+
+                        existingOrderDiv.innerHTML = generateOrderHTML(order);
+                        existingOrderDiv.addEventListener('click', () => {
+                            const statusElement = existingOrderDiv.querySelector('p');
+                            if (statusElement && statusElement.textContent.includes('Accepted')) {
+                                markOrderInPreparation(order.order_id);
+                            }
+                        });
+                    }
                 });
             })
             .catch(error => console.error("Błąd przy pobieraniu zamówień:", error));
     }
 
+    function markOrderInPreparation(orderId) {
+        fetch(`/kitchen/accept_order/${orderId}`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const orderDiv = document.getElementById(`order-${orderId}`);
+                    if (orderDiv) {
+                        orderDiv.style.backgroundColor = '#fff3cd';
+                        const statusElement = orderDiv.querySelector('p');
+                        if (statusElement) {
+                            statusElement.innerHTML = `Status: In Preparation <a> id: ${orderId}</a>`;
+                        }
+                    }
+                } else {
+                    console.error(data.message);
+                }
+            })
+            .catch(error => console.error('Błąd podczas aktualizacji statusu:', error));
+    }
+
+    function markOrderAsReady(orderId) {
+        const orderDiv = document.getElementById(`order-${orderId}`);
+        if (orderDiv) {
+            const readyButton = orderDiv.querySelector('.status-btn-secondary');
+            if (readyButton) {
+                readyButton.remove();
+            }
+        }
+
+        fetch(`/kitchen/complete_order/${orderId}`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`Zamówienie ${orderId} oznaczone jako Gotowe.`);
+                } else {
+                    console.error(data.message);
+                }
+            })
+            .catch(error => console.error('Błąd podczas oznaczania zamówienia jako Gotowe:', error));
+    }
+
+    function playSound(soundId) {
+        if (!soundEnabled) return;
+        
+        const audio = document.getElementById(soundId);
+        if (audio) {
+            audio.currentTime = 0;
+            
+            const playPromise = audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log(`Dźwięk ${soundId} odtworzony pomyślnie`);
+                    })
+                    .catch(error => {
+                        console.error(`Błąd odtwarzania dźwięku ${soundId}:`, error);
+                        if (error.name === 'NotAllowedError') {
+                            alert('Przeglądarka zablokowała automatyczne odtwarzanie dźwięków. Kliknij przycisk "Włącz dźwięki".');
+                        }
+                    });
+            }
+        } else {
+            console.error(`Nie znaleziono elementu audio o id ${soundId}`);
+        }
+    }
+
+    document.getElementById('toggleSound').addEventListener('click', function() {
+        soundEnabled = !soundEnabled;
+        this.textContent = soundEnabled ? '🔇 Wyłącz dźwięki' : '🔊 Włącz dźwięki';
+        
+        if (soundEnabled) {
+            playSound('kitchenOrderSound');
+        }
+    });
+
     // Odświeżanie listy zamówień co kilka sekund
     setInterval(fetchAcceptedOrders, 5000);
     fetchAcceptedOrders(); // Początkowe załadowanie zamówień
 </script>
+
+<style>
+.header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.sound-controls {
+    display: inline-block;
+}
+
+.sound-btn {
+    padding: 6px 12px;
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: normal;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.sound-btn:hover {
+    background-color: #e9ecef;
+    border-color: #ced4da;
+    transform: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.sound-btn:active {
+    background-color: #dee2e6;
+    transform: none;
+    box-shadow: none;
+}
+</style>
 {% endblock %}

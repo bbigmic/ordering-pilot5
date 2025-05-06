@@ -1,31 +1,111 @@
 {% extends "admin_base.html" %}
 
-{% block title %}Dodawanie Stoliki i Generowanie QR Kodów{% endblock %}
+{% block title %}Zarządzanie Stolikami{% endblock %}
 
 {% block content %}
-<h1>Dodaj Stoliki</h1>
+<h1>Zarządzanie Stolikami</h1>
 
 <p class="admin-info">
-    W tej sekcji możesz dodawać stoliki do systemu. <br>Po dodaniu stolika zostanie wygenerowany kod QR, 
-    który możesz umieścić na stoliku, aby umożliwić gościom składanie zamówień do tego stolika za pomocą skanowania kodu.
+    W tej sekcji możesz ustawić całkowitą liczbę stolików w restauracji. <br>
+    System automatycznie wygeneruje jeden unikalny kod QR, który prowadzi do strony wyboru numeru stolika.
+    <br><br>
+    <strong>Uwaga:</strong> Zmiana liczby stolików spowoduje usunięcie wszystkich istniejących stolików i utworzenie nowych.
 </p>
 
 <form method="POST">
-    <label for="table_count">Liczba stolików do dodania:</label>
+    <label for="table_count">Całkowita liczba stolików w restauracji:</label>
     <input type="number" id="table_count" name="table_count" min="1" required>
-    <button type="submit">Dodaj Stoliki</button>
+    <button type="submit">Zaktualizuj Liczbę Stolików</button>
 </form>
 
-<h2>Istniejące Stoliki</h2>
-<div class="tables">
-    {% for table in tables %}
-        <div class="table">
-            <p>Stolik ID: {{ table.id }}</p>
-            <img src="{{ url_for('uploaded_file', filename='table_' ~ table.id ~ '.png') }}" 
-                 alt="QR Code for Table {{ table.id }}" 
-                 class="qr-code">
-            <hr>
+<h2>Status Stolików</h2>
+
+    <div class="table">
+        <p>Aktualna liczba stolików w restauracji: <strong>{{ tables|length }}</strong></p>
+    </div>
+
+
+<h2>Unikalny Kod QR</h2>
+<div class="qr-section">
+    <div class="qr-container">
+        <p>Kod QR prowadzący do strony wyboru stolika:</p>
+        <img src="{{ url_for('uploaded_file', filename='main_qr.png') }}" 
+             alt="QR Code for Order Type Selection" 
+             class="qr-code">
+        <div class="qr-actions">
+            <a href="{{ url_for('download_qr') }}" class="download-btn">
+                <i class="fas fa-download"></i> Pobierz kod QR
+            </a>
         </div>
-    {% endfor %}
+    </div>
 </div>
+
+
+<style>
+.qr-section {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.qr-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.qr-code {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+    display: block;
+}
+
+.qr-actions {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.download-btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #4CAF50;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    transition: background-color 0.3s;
+}
+
+.download-btn:hover {
+    background-color: #45a049;
+}
+
+.download-btn i {
+    margin-right: 5px;
+}
+
+.tables {
+    width: 100%;
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.table {
+    padding: 10px 0;
+}
+
+.table p {
+    margin: 0;
+    padding: 0;
+}
+</style>
 {% endblock %}

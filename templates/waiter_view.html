@@ -3,17 +3,42 @@
 {% block title %}Widok Kelnera{% endblock %}
 
 {% block content %}
-<h1>Widok Kelnera</h1>
+<div class="header-container">
+    <h1>Widok Kelnera</h1>
+    <div class="sound-controls">
+        <button id="toggleSound" class="sound-btn">🔊 Włącz dźwięki</button>
+    </div>
+</div>
 
 <div id="active-notifications" class="notifications"></div>
 
 <div id="orders" class="orders">
     {% for order in orders %}
         <div class="order" id="order-{{ order.id }}">
-            <h2>Zamówienie nr {{ order.order_number }} - Stolik nr {{ order.table_id }}</h2>
+            <h2>Zamówienie nr {{ order.order_number }} - 
+                {% if order.table_id %}
+                    Stolik nr {{ order.table_id }}
+                {% else %}
+                    <span style="color: red;">Zamówienie online (DOSTAWA)</span>
+                {% endif %}
+            </h2>
             <p>Status: {{ order.status }} <a> id: {{ order.id }}</a></p>
             <p>Łączna cena: {{ order.total_price }} PLN</p>
             <p>Godzina zamówienia: {{ order.created_at.strftime("%H:%M") }}</p>
+
+            {% if order.table_id is none %}
+            <h3 style="color: green;">Dane do dostawy:</h3>
+            <ul>
+                <li><strong>Imię i nazwisko:</strong> {{ order.delivery_name }}</li>
+                <li><strong>Telefon:</strong> {{ order.delivery_phone }}</li>
+                <li><strong>Adres:</strong> {{ order.delivery_address }}</li>
+                <li><strong>Kod pocztowy:</strong> {{ order.delivery_postal }}</li>
+                {% if order.delivery_comments %}
+                    <li><strong>Uwagi:</strong> {{ order.delivery_comments }}</li>
+                {% endif %}
+            </ul>
+            {% endif %}
+
             <h3>Szczegóły zamówienia:</h3>
             <ul>
                 {% for item in order.order_items %}
@@ -34,9 +59,9 @@
                     <label for="realization-time-{{ order.id }}">Wpisz czas realizacji (minuty):</label>
                     <input type="number" id="realization-time-{{ order.id }}" min="1" placeholder="np. 15">
                     <button onclick="acceptOrder({{ order.id }})" class="status-btn">Przyjmij zamówienie</button>
-                {% elif order.status == "Accepted" %}
+                {% elif order.status == "Ready" %}
                     <form action="{{ url_for('update_order_status', order_id=order.id) }}" method="post">
-                        <button type="submit" class="status-btn">Zamówienie zrealizowane</button>
+                        <button type="submit" class="status-btn-secondary" onclick="confirmOrderCompletion({{ order.id }})">Zamówienie zrealizowane</button>
                     </form>
                 {% endif %}
             </div>
@@ -44,10 +69,155 @@
     {% endfor %}
 </div>
 
+<audio id="newOrderSound" src="{{ url_for('static', filename='sounds/new_order.wav') }}" preload="auto"></audio>
+<audio id="callWaiterSound" src="{{ url_for('static', filename='sounds/call_waiter.wav') }}" preload="auto"></audio>
+<audio id="billRequestSound" src="{{ url_for('static', filename='sounds/bill_request.wav') }}" preload="auto"></audio>
 
 <a href="{{ url_for('order_history') }}" class="history-link">Zobacz historię zrealizowanych zamówień</a>
 
+<style>
+.header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.sound-controls {
+    display: inline-block;
+}
+
+.sound-btn {
+    padding: 6px 12px;
+    background-color: #f8f9fa;
+    color: #495057;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: normal;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.sound-btn:hover {
+    background-color: #e9ecef;
+    border-color: #ced4da;
+    transform: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.sound-btn:active {
+    background-color: #dee2e6;
+    transform: none;
+    box-shadow: none;
+}
+</style>
+
 <script>
+    // Zmienna do śledzenia stanu dźwięków
+    let soundEnabled = false;
+    let audioContext = null;
+    let audioBuffers = {};
+    let soundQueue = [];
+    let isPlaying = false;
+
+    // Inicjalizacja AudioContext po interakcji użytkownika
+    function initAudio() {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            loadAudioBuffers();
+        }
+    }
+
+    // Ładowanie wszystkich dźwięków do buforów
+    async function loadAudioBuffers() {
+        const sounds = ['newOrderSound', 'callWaiterSound', 'billRequestSound'];
+        for (const soundId of sounds) {
+            try {
+                const audio = document.getElementById(soundId);
+                if (audio) {
+                    const response = await fetch(audio.src);
+                    const arrayBuffer = await response.arrayBuffer();
+                    audioBuffers[soundId] = await audioContext.decodeAudioData(arrayBuffer);
+                }
+            } catch (error) {
+                console.error(`Błąd ładowania dźwięku ${soundId}:`, error);
+            }
+        }
+    }
+
+    // Odtwarzanie dźwięku z bufora
+    async function playSoundFromBuffer(soundId) {
+        if (!soundEnabled || !audioContext || !audioBuffers[soundId]) return;
+
+        try {
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffers[soundId];
+            source.connect(audioContext.destination);
+            source.start(0);
+            console.log(`Dźwięk ${soundId} odtworzony pomyślnie`);
+        } catch (error) {
+            console.error(`Błąd odtwarzania dźwięku ${soundId}:`, error);
+            // Dodaj do kolejki w przypadku błędu
+            soundQueue.push(soundId);
+        }
+    }
+
+    // Obsługa kolejki dźwięków
+    async function processSoundQueue() {
+        if (isPlaying || soundQueue.length === 0) return;
+        
+        isPlaying = true;
+        const soundId = soundQueue.shift();
+        
+        try {
+            await playSoundFromBuffer(soundId);
+        } finally {
+            isPlaying = false;
+            if (soundQueue.length > 0) {
+                setTimeout(processSoundQueue, 100);
+            }
+        }
+    }
+
+    // Funkcja do odtwarzania dźwięku
+    function playSound(soundId) {
+        if (!soundEnabled) return;
+        
+        // Dodaj do kolejki
+        soundQueue.push(soundId);
+        processSoundQueue();
+    }
+
+    // Obsługa przycisku włączania/wyłączania dźwięków
+    document.getElementById('toggleSound').addEventListener('click', async function() {
+        if (!audioContext) {
+            initAudio();
+        }
+        
+        soundEnabled = !soundEnabled;
+        this.textContent = soundEnabled ? '🔇 Wyłącz dźwięki' : '🔊 Włącz dźwięki';
+        
+        if (soundEnabled) {
+            try {
+                // Próbujemy odtworzyć krótki dźwięk testowy
+                await playSoundFromBuffer('newOrderSound');
+            } catch (error) {
+                console.error('Błąd odtwarzania dźwięku testowego:', error);
+                alert('Wystąpił problem z odtwarzaniem dźwięków. Spróbuj odświeżyć stronę.');
+            }
+        }
+    });
+
+    // Inicjalizacja AudioContext przy pierwszej interakcji użytkownika
+    document.addEventListener('click', function initOnFirstInteraction() {
+        if (!audioContext) {
+            initAudio();
+        }
+        document.removeEventListener('click', initOnFirstInteraction);
+    }, { once: true });
+
     // Śledzenie zamówień, które już są wyświetlane
     const displayedOrders = new Set();
 
@@ -69,128 +239,191 @@
             .catch(error => console.error("Błąd przy zamykaniu powiadomienia:", error));
     }
 
+    const displayedNotifications = new Set();
+
+    function generateOrderHTML(order) {
+        let buttonHTML = "";
+        if (order.status === "Pending") {
+            buttonHTML = `
+                <label for="realization-time-${order.order_id}">Wpisz czas realizacji (minuty):</label>
+                <input type="number" id="realization-time-${order.order_id}" min="1" placeholder="np. 15">
+                <button onclick="acceptOrder(${order.order_id})" class="status-btn">Przyjmij zamówienie</button>
+            `;
+        } else if (order.status === "Ready") {
+            buttonHTML = `
+                <form action="/update_order_status/${order.order_id}" method="post">
+                    <button type="submit" class="status-btn-secondary" onclick="confirmOrderCompletion(${order.order_id})">Zamówienie zrealizowane</button>
+                </form>
+            `;
+        }
+
+        let tableInfo = order.table_id
+            ? `Stolik nr ${order.table_id}`
+            : `<span style="color: red;">Zamówienie online (DOSTAWA)</span>`;
+
+        let deliveryInfo = "";
+        if (!order.table_id) {
+            deliveryInfo = `
+                <h3 style="color: green;">Dane do dostawy:</h3>
+                <ul>
+                    <li><strong>Imię i nazwisko:</strong> ${order.delivery_name}</li>
+                    <li><strong>Telefon:</strong> ${order.delivery_phone}</li>
+                    <li><strong>Adres:</strong> ${order.delivery_address}</li>
+                    <li><strong>Kod pocztowy:</strong> ${order.delivery_postal}</li>
+                    ${order.delivery_comments ? `<li><strong>Uwagi:</strong> ${order.delivery_comments}</li>` : ""}
+                </ul>
+            `;
+        }
+
+        return `
+            <h2>Zamówienie nr ${order.order_number} - ${tableInfo}</h2>
+            <p>Status: ${order.status} <a> id: ${order.order_id}</a></p>
+            <p>Łączna cena: ${order.total_price} PLN</p>
+            <p>Godzina zamówienia: ${order.order_time}</p>
+            ${deliveryInfo}
+            <h3>Szczegóły zamówienia:</h3>
+            <ul>
+                ${order.items.map(item => `
+                    <li>
+                        ${item.name} - Ilość: ${item.quantity} - Cena: ${item.price} PLN
+                        ${item.takeaway ? `<strong>[Na wynos]</strong>` : ""}
+                        ${item.customization ? `<br><em>Personalizacja: ${item.customization}</em>` : ""} <hr>
+                    </li>
+                `).join("")}
+            </ul>
+            <div id="order-action-${order.order_id}">
+                ${buttonHTML}
+            </div>
+        `;
+    }
+
     function checkForNewCalls() {
         fetch('/check_waiter_calls')
             .then(response => response.json())
             .then(calls => {
                 const notificationsDiv = document.getElementById("active-notifications");
                 notificationsDiv.innerHTML = '';
+
                 calls.forEach(call => {
+                    const notificationId = `${call.order_id}-${call.call_type}`;
+
+                    // Sprawdzamy, czy to nowe powiadomienie
+                    const isNewNotification = !displayedNotifications.has(notificationId);
+
+                    if (isNewNotification) {
+                        displayedNotifications.add(notificationId);
+
+                        // Odtwarzamy dźwięk w zależności od typu powiadomienia
+                        if (call.call_type === "Wezwanie kelnera") {
+                            playSound('callWaiterSound');
+                        } else if (call.call_type === "Prośba o rachunek") {
+                            playSound('billRequestSound');
+                        }
+                    }
+
                     const notification = document.createElement("div");
                     notification.classList.add("notification");
-                    notification.id = `notification-${call.order_id}-${call.call_type}`;
+                    notification.id = `notification-${notificationId}`;
 
                     let message = call.call_type === "Wezwanie kelnera"
                         ? `Zamówienie nr ${call.order_number}: Wezwanie do stolika nr ${call.table_id} <br> Czas wezwania: ${call.call_time}`
-                        : `Zamówienie nr ${call.order_number}: Prośba o rachunek do stolika nr ${call.table_id} <br>
-                           <strong>Płatność:</strong> ${call.payment_method || "Nie podano"} <br>
-                           <strong>Napiwek:</strong> ${"+"+call.tip+" PLN" || "0 PLN"} <br>
-                           ${call.nip ? `<strong>NIP:</strong> ${call.nip}` : ""} <br>
-                           Czas wezwania: ${call.call_time}`;
+                        : `Zamówienie nr ${call.order_number}: Prośba o rachunek do stolika nr ${call.table_id} <br> 
+                           Czas wezwania: ${call.call_time} <br>
+                           Metoda płatności: ${call.payment_method} <br>
+                           ${call.tip > 0 ? `Napiwek: ${call.tip} PLN <br>` : ''}
+                           ${call.nip ? `NIP: ${call.nip}` : ''}`;
 
                     notification.innerHTML = `
-                        <p>${message}</p>
+                        ${message}
                         <button onclick="dismissNotification(${call.order_id}, '${call.call_type}')">Zamknij</button>
                     `;
+
                     notificationsDiv.appendChild(notification);
                 });
             })
-            .catch(error => console.error("Błąd przy pobieraniu powiadomień:", error));
+            .catch(error => console.error("Błąd przy sprawdzaniu powiadomień:", error));
     }
 
-function updateOrders() {
-    fetch('/check_new_orders')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Błąd serwera: ${response.status} - ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(orders => {
-            console.log("Otrzymane zamówienia:", orders);
-
-            const ordersDiv = document.getElementById("orders");
-            orders.forEach(order => {
-                if (!document.getElementById(`order-${order.order_id}`)) {
-                    const orderDiv = document.createElement("div");
-                    orderDiv.classList.add("order");
-                    orderDiv.id = `order-${order.order_id}`;
-
-                    // W zależności od statusu generujemy odpowiedni przycisk
-                    let buttonHTML;
-                    if (order.status === "Pending") {
-                        buttonHTML = `
-                            <label for="realization-time-${order.order_id}">Wpisz czas realizacji (minuty):</label>
-                            <input type="number" id="realization-time-${order.order_id}" min="1" placeholder="np. 15">
-                            <button onclick="acceptOrder(${order.order_id})" class="status-btn">Przyjmij zamówienie</button>
-                        `;
-                    } else if (order.status === "Accepted") {
-                        buttonHTML = `
-                            <form action="/update_order_status/${order.order_id}" method="post">
-                                <button type="submit" class="status-btn">Zamówienie zrealizowane</button>
-                            </form>
-                        `;
-                    }
-
-                    orderDiv.innerHTML = `
-                        <h2>Zamówienie nr ${order.order_number} - Stolik nr ${order.table_id}</h2>
-                        <p>Status: ${order.status} <a> id: ${order.order_id}</a></p>
-                        <p>Łączna cena: ${order.total_price} PLN</p>
-                        <p>Godzina zamówienia: ${order.order_time}</p>
-                        <h3>Szczegóły zamówienia:</h3>
-                        <ul>
-                            ${order.items.map(item => `
-                                <li>
-                                    ${item.name} - Ilość: ${item.quantity} - Cena: ${item.price} PLN
-                                    ${item.takeaway ? `<strong>[Na wynos]</strong>` : ""}
-                                    ${item.customization ? `<br><em>Personalizacja: ${item.customization}</em>` : ""} <hr>
-                                </li>
-                            `).join("")}
-                        </ul>
-                        <div id="order-action-${order.order_id}">
-                            ${buttonHTML}
-                        </div>
-                    `;
-                    ordersDiv.appendChild(orderDiv);
+    function updateOrders() {
+        fetch('/check_new_orders')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Błąd serwera: ${response.status} - ${response.statusText}`);
                 }
-            });
-        })
-        .catch(error => console.error("Błąd przy pobieraniu zamówień:", error));
-}
+                return response.json();
+            })
+            .then(orders => {
+                console.log("Otrzymane zamówienia:", orders);
 
-function acceptOrder(orderId) {
-    const realizationTimeInput = document.getElementById(`realization-time-${orderId}`);
-    const realizationTime = parseInt(realizationTimeInput.value);
+                const ordersDiv = document.getElementById("orders");
+                orders.forEach(order => {
+                    const existingOrderDiv = document.getElementById(`order-${order.order_id}`);
 
-    if (!realizationTime || realizationTime <= 0) {
-        alert("Proszę wprowadzić poprawny czas realizacji w minutach.");
-        return;
+                    if (!existingOrderDiv) {
+                        const orderDiv = document.createElement("div");
+                        orderDiv.classList.add("order");
+                        orderDiv.id = `order-${order.order_id}`;
+                        
+                        // Dodajemy style w zależności od statusu
+                        if (order.status === "In Preparation") {
+                            orderDiv.style.backgroundColor = '#fff3cd';  // Żółty dla "In Preparation"
+                        } else if (order.status === "Ready") {
+                            orderDiv.style.backgroundColor = '#d4edda';  // Zielony dla "Ready"
+                        }
+                        
+                        orderDiv.innerHTML = generateOrderHTML(order);
+                        ordersDiv.appendChild(orderDiv);
+
+                        // Odtwarzamy dźwięk dla nowego zamówienia
+                        playSound('newOrderSound');
+                    } else {
+                        // Aktualizujemy style dla istniejącego zamówienia
+                        if (order.status === "In Preparation") {
+                            existingOrderDiv.style.backgroundColor = '#fff3cd';  // Żółty dla "In Preparation"
+                        } else if (order.status === "Ready") {
+                            existingOrderDiv.style.backgroundColor = '#d4edda';  // Zielony dla "Ready"
+                        } else {
+                            existingOrderDiv.style.backgroundColor = '';  // Domyślny kolor dla innych statusów
+                        }
+                        
+                        existingOrderDiv.innerHTML = generateOrderHTML(order);
+                    }
+                });
+            })
+            .catch(error => console.error("Błąd przy pobieraniu zamówień:", error));
     }
 
-    fetch(`/accept_order/${orderId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ realization_time: realizationTime })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            alert("Zamówienie zostało przyjęte!");
-            const actionDiv = document.getElementById(`order-action-${orderId}`);
-            actionDiv.innerHTML = `
-                <form action="/update_order_status/${orderId}" method="post">
-                    <button type="submit" class="status-btn">Zamówienie zrealizowane</button>
-                </form>
-            `;
-        } else {
-            alert(data.message || "Wystąpił błąd przy aktualizacji zamówienia.");
+    function acceptOrder(orderId) {
+        const realizationTimeInput = document.getElementById(`realization-time-${orderId}`);
+        const realizationTime = parseInt(realizationTimeInput.value);
+
+        if (!realizationTime || realizationTime <= 0) {
+            alert("Proszę wprowadzić poprawny czas realizacji w minutach.");
+            return;
         }
-    })
-    .catch(error => console.error("Błąd przy akceptacji zamówienia:", error));
-}
 
+        fetch(`/accept_order/${orderId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ realization_time: realizationTime })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const actionDiv = document.getElementById(`order-action-${orderId}`);
+                actionDiv.innerHTML = ``;
+            } else {
+                alert(data.message || "Wystąpił błąd przy aktualizacji zamówienia.");
+            }
+        })
+        .catch(error => console.error("Błąd przy akceptacji zamówienia:", error));
+    }
 
-
+    function confirmOrderCompletion(orderId) {
+        if (!confirm("Czy na pewno chcesz oznaczyć to zamówienie jako zrealizowane?")) {
+            event.preventDefault();
+        }
+    }
 
     // Odświeżaj powiadomienia co kilka sekund
     setInterval(() => {

@@ -25,20 +25,34 @@
 
                 <div class="only-worker-ul">
                     <ul>
-                        <li class="sidebar-item"><a href="https://papu.kitchen/">Strona Główna Restauracji</a></li>
-<!--                         <li class="sidebar-item"><a href="{{ url_for('waiter_view') }}">Widok Kelnera</a></li>
-                        <li class="sidebar-item"><a href="{{ url_for('kitchen_view') }}">Widok Kuchni</a></li>
-                        <li class="sidebar-item"><a href="http://ordering-deploy.onrender.com/menu/2">Zamawianie</a></li> -->
-                        <!-- <li class="sidebar-item"><a href="">Rezerwacje stolików</a></li>                 -->
+                        <li class="sidebar-item sidebar-item-enabled"><a href="/">Strona Główna Restauracji</a></li>
+                        <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('waiter_view') }}">Widok Kelnera</a></li>
+                        <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('kitchen_view') }}">Widok Kuchni</a></li>
+                        <li class="sidebar-item sidebar-item-enabled">
+                            <button class="order-toggle-btn" onclick="toggleOrderDropdown()">
+                                <span id="order-arrow" class="arrow">&#9654;</span> Zamawianie
+                            </button>
+                            <ul id="order-dropdown" class="order-dropdown">
+                                {% if tables %}
+                                    {% for table in tables %}
+                                        <li class="li-tables"><a href="{{ url_for('menu', table_id=table.id) }}">Stolik {{ table.id }}</a></li>
+                                    {% endfor %}
+                                {% else %}
+                                    <li><em>Brak dostępnych stolików</em></li>
+                                {% endif %}
+                            </ul>
+                        </li>
+                        <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('menu_online_order') }}">📲 Zamawianie Online</a></li>
                     </ul>
                 </div>
                 <hr>
                 <div class="admin-ul">
                     <ul>
-                        <li class="sidebar-item"><a href="{{ url_for('admin_panel') }}">Zarządzaj Aktualnym Menu</a></li>
-                        <!-- <li class="sidebar-item"><a href="{{ url_for('add_tables') }}">Stoliki</a></li> -->
-                        <li class="sidebar-item"><a href="{{ url_for('add_events') }}">Zarządzaj Wydarzeniami</a></li>
-                        <li class="sidebar-item"><a href="{{ url_for('admin_add_popup') }}">Zarządzaj Pop-upem</a></li>
+                        <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('admin_panel') }}">Zarządzaj Aktualnym Menu</a></li>
+                        <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('add_tables') }}">Dodaj Stoliki</a></li>
+                        <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('add_events') }}">Zarządzaj Wydarzeniami</a></li>
+                        <li class="sidebar-item sidebar-item-enabled"><a href="{{ url_for('admin_add_popup') }}">Zarządzaj Pop-upem</a></li>
+                        <!-- <li class="sidebar-item sidebar-item-disabled"><a>Rezerwacje stolików</a></li>  -->
                     </ul>
                 </div>
             </div>
@@ -55,6 +69,18 @@
         sidebar.classList.toggle('collapsed');
     }
 
+    function toggleOrderDropdown() {
+        let dropdown = document.getElementById("order-dropdown");
+        let arrow = document.getElementById("order-arrow");
+
+        if (dropdown.style.display === "block") {
+            dropdown.style.display = "none";
+            arrow.classList.remove("open"); // Strzałka wraca do ►
+        } else {
+            dropdown.style.display = "block";
+            arrow.classList.add("open"); // Strzałka obraca się na ▼
+        }
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
         const sidebarItems = document.querySelectorAll('.sidebar-item a');
@@ -65,5 +91,9 @@
             }
         });
     });
+
+
+
+
 </script>
 </html>

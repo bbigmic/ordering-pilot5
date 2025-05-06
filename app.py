@@ -8,8 +8,9 @@ import os
 import pytz
 import qrcode
 import io
+import stripe
 from dotenv import load_dotenv
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from functools import wraps  # Dodaj ten import na początku pliku
 from flask_login import UserMixin
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -23,6 +24,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY", "defaultsecretkey")
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 app.config['UPLOAD_FOLDER'] = '/var/data/images'
@@ -58,6 +60,7 @@ def logout():
     logout_user()
     flash("Wylogowano", "info")
     return redirect(url_for('admin_panel'))
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -99,16 +102,47 @@ def employee_required(f):
 
 
 # Funkcja pomocnicza do generowania QR kodów
-def generate_qr_code(link):
+def generate_qr_code(link, table_id):
     qr = qrcode.QRCode(
         version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,  # Zwiększona korekcja błędów
+        box_size=20,  # Zwiększona rozdzielczość
         border=4,
     )
     qr.add_data(link)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Konwersja QR kodu do trybu RGBA
+    img = img.convert('RGBA')
+    
+    # Pobranie rozmiaru QR kodu
+    qr_size = img.size[0]
+    
+    # Dodanie logo w środku QR kodu
+    logo = Image.open('static/images/PAPU_logo_bitmap.jpeg')
+    
+    # Konwersja logo do trybu RGBA
+    logo = logo.convert('RGBA')
+    
+    # Obliczenie rozmiaru logo proporcjonalnie do rozmiaru modułów QR kodu
+    # Każdy moduł ma 20x20 pikseli, więc logo będzie miało 9 modułów (180x180 pikseli)
+    logo_size = 9 * 20  # 9 modułów * 20 pikseli na moduł
+    
+    # Zmiana rozmiaru logo
+    logo = logo.resize((logo_size, logo_size))
+    
+    # Tworzenie białego obramowania
+    border_size = 1  # 1 moduł = 20 pikseli
+    bordered_logo = Image.new('RGBA', (logo_size + 2*border_size, logo_size + 2*border_size), (255, 255, 255, 255))
+    bordered_logo.paste(logo, (border_size, border_size), logo)
+    
+    # Obliczenie pozycji logo z obramowaniem (środek QR kodu)
+    pos = ((qr_size - (logo_size + 2*border_size)) // 2, (qr_size - (logo_size + 2*border_size)) // 2)
+    
+    # Wklejenie logo z obramowaniem na QR kod z zachowaniem przezroczystości
+    img.paste(bordered_logo, pos, bordered_logo)
+    
     return img
 
 
@@ -140,7 +174,7 @@ class MenuItem(db.Model):
 
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    table_id = db.Column(db.Integer, db.ForeignKey('table.id'))
+    table_id = db.Column(db.Integer, db.ForeignKey('table.id'), nullable=True)
     status = db.Column(db.String(50), default='Pending')
     total_price = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -153,6 +187,12 @@ class Order(db.Model):
     tip = db.Column(db.Float, nullable=True)  # Nowe pole na napiwek
     nip = db.Column(db.String(15), nullable=True)  # Nowe pole na NIP
     estimated_completion_time = db.Column(db.DateTime, nullable=True)
+
+    delivery_name = db.Column(db.String(100), nullable=True)
+    delivery_phone = db.Column(db.String(20), nullable=True)
+    delivery_address = db.Column(db.String(255), nullable=True)
+    delivery_postal = db.Column(db.String(20), nullable=True)
+    delivery_comments = db.Column(db.Text, nullable=True)
 
     @staticmethod
     def generate_order_number():
@@ -201,6 +241,131 @@ class Popup(db.Model):
 # @app.route("/")
 # def index():
 #     return "Hello, Vercel!"
+
+@app.route('/check_location', methods=['POST'])
+def check_location():
+    data = request.json
+    user_lat = data.get("latitude")
+    user_lon = data.get("longitude")
+
+
+    #dom wir
+    # RESTAURANT_LAT = 50.7576195578944
+    # RESTAURANT_LON = 19.10046215844812
+
+    #dom ngw
+        # RESTAURANT_LAT = 50.05538783157192
+        # RESTAURANT_LON = 21.467076217640532
+    # Współrzędne restauracji
+    RESTAURANT_LAT = 50.83174207392536
+    RESTAURANT_LON = 19.08261400134686
+    MAX_DISTANCE_KM = 0.1  # 100 metrów od restauracji
+
+    def haversine(lat1, lon1, lat2, lon2):
+        from math import radians, sin, cos, sqrt, atan2
+        R = 6371  # promień Ziemi w km
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat/2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2) ** 2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        return R * c
+
+    distance = haversine(user_lat, user_lon, RESTAURANT_LAT, RESTAURANT_LON)
+    return jsonify({"allowed": distance < MAX_DISTANCE_KM})
+
+@app.route('/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    try:
+        data = request.json
+        order_id = data.get('order_id')
+        order = Order.query.get_or_404(order_id)
+        
+        # Konwersja kwoty na centy (Stripe wymaga kwot w centach)
+        amount_cents = int(order.total_price * 100)
+        
+        # Tworzenie sesji Stripe
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'pln',
+                    'product_data': {
+                        'name': f'Zamówienie #{order.order_number}',
+                    },
+                    'unit_amount': amount_cents,
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=url_for('payment_success', order_id=order_id, _external=True),
+            cancel_url=url_for('payment_cancel', order_id=order_id, _external=True),
+        )
+        
+        return jsonify({'id': session.id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/payment-cancel')
+def payment_cancel():
+    flash("Płatność została anulowana.", "warning")
+    return redirect(url_for('menu_online_order'))  # Możesz zmienić na dowolną stronę
+
+
+
+@app.route('/payment-success')
+def payment_success():
+    try:
+        session_id = request.args.get('session_id')
+        session = stripe.checkout.Session.retrieve(session_id)
+
+        if session.payment_status == 'paid':
+            table_id = session.metadata.get('table_id')
+            total_price = float(session.metadata.get('total_price'))
+            order_items = eval(session.metadata.get('order_items'))
+
+            # Pobieramy dane dostawy
+            delivery_name = session.metadata.get('delivery_name', None)
+            delivery_phone = session.metadata.get('delivery_phone', None)
+            delivery_address = session.metadata.get('delivery_address', None)
+            delivery_postal = session.metadata.get('delivery_postal', None)
+            delivery_comments = session.metadata.get('delivery_comments', None)
+
+            # Tworzymy zamówienie w bazie
+            new_order = Order(
+                table_id=int(table_id) if table_id != "None" else None,
+                status="Pending",
+                total_price=total_price,
+                delivery_name=delivery_name,
+                delivery_phone=delivery_phone,
+                delivery_address=delivery_address,
+                delivery_postal=delivery_postal,
+                delivery_comments=delivery_comments
+            )
+            db.session.add(new_order)
+            db.session.commit()
+
+            for item in order_items:
+                order_item = OrderItem(
+                    order_id=new_order.id,
+                    menu_item_id=item['menu_item_id'],
+                    quantity=item['quantity']
+                )
+                db.session.add(order_item)
+
+            db.session.commit()
+
+            return redirect(url_for('order_status', order_id=new_order.id))
+
+        return "Błąd płatności", 400
+
+    except Exception as e:
+        print("Błąd w payment_success:", str(e))
+        return "Wystąpił błąd.", 500
+
+@app.route('/choose_order_type')
+def choose_order_type():
+    tables = Table.query.all()
+    return render_template('choose_order_type.html', tables=tables)
 
 @app.route('/')
 def home():
@@ -251,9 +416,11 @@ def add_popup():
 @admin_required
 def admin_add_popup():
     popup = Popup.query.first()
+    tables = Table.query.all()
     return render_template('admin_popups.html', 
                            popup_image=popup.image_filename if popup else None, 
-                           is_active=popup.is_active if popup else False)
+                           is_active=popup.is_active if popup else False,
+                           tables=tables)
 
 @app.route('/popup_image')
 def popup_image():
@@ -314,13 +481,41 @@ def menu(table_id):
     }
     return render_template('menu.html', categories=categories, table_id=table_id, current_time=current_time)
 
+@app.route('/menu_online_order')
+def menu_online_order():
+    # Aktualna godzina w strefie czasowej UTC+1
+    timezone = pytz.timezone('Europe/Warsaw')
+    current_time = datetime.now(timezone)
 
+    # Pobranie kategorii menu z bazy danych
+    categories = {
+        "Lunch Dnia": MenuItem.query.filter_by(category="Lunch dnia").all(),
+        "Deser Dnia": MenuItem.query.filter_by(category="Deser dnia").all(),
+        "Przystawki": MenuItem.query.filter_by(category="Przystawki").all(),
+        "Śniadania": MenuItem.query.filter_by(category="Śniadania").all(),
+        "Kanapki": MenuItem.query.filter_by(category="Kanapki").all(),
+        "Zupy": MenuItem.query.filter_by(category="Zupy").all(),
+        "Bowle": MenuItem.query.filter_by(category="Bowle").all(),
+        "Dania główne": MenuItem.query.filter_by(category="Dania główne").all(),
+        "Dania dla dzieci": MenuItem.query.filter_by(category="Dania dla dzieci").all(),
+        "Sałatki": MenuItem.query.filter_by(category="Sałatki").all(),
+        "Desery": MenuItem.query.filter_by(category="Desery").all(),
+        "Napoje Ciepłe": MenuItem.query.filter_by(category="Napoje ciepłe").all(),
+        "Napoje Zimne": MenuItem.query.filter_by(category="Napoje zimne").all(),
+        "Napoje Specjalne": MenuItem.query.filter_by(category="Napoje specjalne").all(),
+        "Alkohole": MenuItem.query.filter_by(category="Alkohole").all()
+    }
+    
+    return render_template('menu_online.html', categories=categories, table_id=None, current_time=current_time)
 
 @app.route('/check_new_orders', methods=['GET'])
+@login_required
+@employee_required
 def check_new_orders():
     try:
         timezone = pytz.timezone('Europe/Warsaw')
-        new_orders = Order.query.filter_by(status="Pending").all()
+        active_statuses = ["Pending", "Accepted", "In Preparation", "Ready"]
+        active_orders = Order.query.filter(Order.status.in_(active_statuses)).all()
         
         orders = [
             {
@@ -341,10 +536,9 @@ def check_new_orders():
                     for item in order.order_items
                 ]
             }
-            for order in new_orders
+            for order in active_orders
         ]
         
-        print(f"Przetworzone zamówienia: {orders}")  # Dodatkowe logowanie do debugowania
         return jsonify(orders)
 
     except Exception as e:
@@ -360,10 +554,14 @@ def kitchen_view():
 
 
 @app.route('/check_accepted_orders', methods=['GET'])
+@login_required
+@employee_required
 def check_accepted_orders():
     try:
         timezone = pytz.timezone('Europe/Warsaw')
-        accepted_orders = Order.query.filter_by(status="Accepted").all()
+
+        # Pobieramy zamówienia zarówno w statusie "Accepted", jak i "In Preparation"
+        accepted_orders = Order.query.filter(Order.status.in_(["Accepted", "In Preparation"])).all()
 
         orders = [
             {
@@ -478,54 +676,48 @@ def dismiss_bill(order_id):
 
 @app.route('/order', methods=['POST'])
 def place_order():
-    data = request.json
-    table_id = data.get('table_id')
-
-    # Sprawdź, czy table_id istnieje w tabeli 'table'
-    table = Table.query.get(table_id)
-    if not table:
-        return jsonify({"error": "Invalid table ID"}), 400
-
-    items = data.get('items')
-    total_price = 0  # Początkowa całkowita cena zamówienia
-
-    # Tworzymy nowe zamówienie z `table_id`
-    new_order = Order(table_id=table_id, total_price=0)  # Ustawienie 0 jako początkowej wartości
-    db.session.add(new_order)
-    db.session.commit()
-
-    # Dodajemy wszystkie pozycje zamówienia do tabeli OrderItem i obliczamy całkowitą cenę
-    for item in items:
-        menu_item = MenuItem.query.get(item['id'])
-        if not menu_item:
-            return jsonify({"error": f"Invalid menu item ID: {item['id']}"}), 400
-
-        quantity = item['quantity']
-        customization = item.get('customization', '')
-        takeaway = item.get('takeaway', False)
-
-        # Obliczamy cenę pojedynczej pozycji, uwzględniając opcję "Na wynos"
-        item_price = menu_item.price + (2.35 if takeaway else 0)
-        item_total = item_price * quantity
-
-        # Dodajemy do całkowitej ceny
-        total_price += item_total
-
-        # Tworzymy nowy wpis w OrderItem
-        order_item = OrderItem(
-            order_id=new_order.id,
-            menu_item_id=menu_item.id,
-            quantity=quantity,
-            customization=customization,
-            takeaway=takeaway  # Nowe pole
+    try:
+        data = request.json
+        table_id = data.get('table_id')
+        items = data.get('items', [])
+        delivery_info = data.get('delivery_info', {})
+        
+        # Tworzenie nowego zamówienia
+        order = Order(
+            table_id=table_id,
+            status='Pending',
+            total_price=0,
+            delivery_name=delivery_info.get('name'),
+            delivery_phone=delivery_info.get('phone'),
+            delivery_address=delivery_info.get('address'),
+            delivery_postal=delivery_info.get('postal'),
+            delivery_comments=delivery_info.get('comments')
         )
-        db.session.add(order_item)
-
-    # Aktualizujemy całkowitą cenę zamówienia
-    new_order.total_price = total_price
-    db.session.commit()
-
-    return jsonify({'order_id': new_order.id, 'status': 'Order placed', 'total_price': total_price})
+        
+        total_price = 0
+        for item in items:
+            menu_item = MenuItem.query.get(item['id'])
+            if menu_item and menu_item.available:
+                order_item = OrderItem(
+                    menu_item=menu_item,
+                    quantity=item['quantity'],
+                    customization=item.get('customization', ''),
+                    takeaway=item.get('takeaway', False)
+                )
+                order.order_items.append(order_item)
+                total_price += menu_item.price * item['quantity']
+        
+        order.total_price = total_price
+        db.session.add(order)
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'order_id': order.id,
+            'order_number': order.order_number
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 
 
@@ -534,14 +726,29 @@ def place_order():
 @app.route('/order_status/<int:order_id>')
 def order_status(order_id):
     order = Order.query.get_or_404(order_id)
-
-    if order.estimated_completion_time:
-        remaining_time = order.estimated_completion_time - datetime.utcnow()
-        remaining_seconds = max(0, int(remaining_time.total_seconds()))
-    else:
-        remaining_seconds = None
-
-    return render_template('order_status.html', order=order, remaining_seconds=remaining_seconds)
+    
+    # Przygotowanie danych o zamówieniu
+    order_data = {
+        'id': order.id,
+        'order_number': order.order_number,
+        'status': order.status,
+        'total_price': order.total_price,
+        'created_at': order.created_at.isoformat(),
+        'estimated_completion_time': order.estimated_completion_time.isoformat() if order.estimated_completion_time else None,
+        'items': []
+    }
+    
+    # Dodanie informacji o pozycjach zamówienia
+    for item in order.order_items:
+        order_data['items'].append({
+            'name': item.menu_item.name,
+            'quantity': item.quantity,
+            'price': item.menu_item.price,
+            'customization': item.customization,
+            'takeaway': item.takeaway
+        })
+    
+    return render_template('order_status.html', order=order_data)
 
 
 
@@ -568,9 +775,19 @@ def waiter_view():
 @login_required
 @employee_required
 def order_history():
-    # Pobieranie tylko zrealizowanych zamówień
-    completed_orders = Order.query.filter_by(status='Completed').all()
-    return render_template('order_history.html', orders=completed_orders)
+    page = request.args.get('page', 1, type=int)
+    per_page = 50  # Liczba zamówień na stronę
+    
+    # Pobieranie zrealizowanych zamówień z paginacją
+    pagination = Order.query.filter_by(status='Completed')\
+        .order_by(Order.created_at.desc())\
+        .paginate(page=page, per_page=per_page, error_out=False)
+    
+    orders = pagination.items
+    
+    return render_template('order_history.html', 
+                         orders=orders,
+                         pagination=pagination)
 
 
 @app.route('/accept_order/<int:order_id>', methods=['POST'])
@@ -604,7 +821,8 @@ def update_order_status(order_id):
 @admin_required
 def admin_panel():
     menu_items = MenuItem.query.all()
-    return render_template('admin_panel.html', menu_items=menu_items)
+    tables = Table.query.all()
+    return render_template('admin_panel.html', menu_items=menu_items, tables=tables)
 
 
 # Dodawanie nowego dania
@@ -703,30 +921,39 @@ def add_tables():
     if request.method == 'POST':
         table_count = int(request.form['table_count'])
 
-        # Pobierz najwyższy istniejący `table_id` w bazie danych
-        max_table_id = db.session.query(func.max(Table.id)).scalar() or 0
+        # Usuń wszystkie istniejące stoliki i ich kody QR
+        existing_tables = Table.query.all()
+        for table in existing_tables:
+            # Usuń plik QR kodu
+            qr_path = os.path.join(app.config['UPLOAD_FOLDER'], f"table_{table.id}.png")
+            if os.path.exists(qr_path):
+                os.remove(qr_path)
+            # Usuń stolik z bazy
+            db.session.delete(table)
+        
+        db.session.commit()
 
-        # Dodaj nowe stoliki zaczynając od kolejnego ID
+        # Utwórz nowe stoliki od 1 do table_count
         for i in range(1, table_count + 1):
-            new_table_id = max_table_id + i
             new_table = Table(
-                id=new_table_id,
-                qr_code=f"table_{new_table_id}",
+                id=i,
+                qr_code=f"table_{i}",
             )
             db.session.add(new_table)
 
-            # Generowanie linku i QR kodu
-            link = url_for('menu', table_id=new_table_id, _external=True)
-            img = generate_qr_code(link)
-
-            # Zapis QR kodu do katalogu produkcyjnego
-            qr_folder = app.config['UPLOAD_FOLDER']
-            os.makedirs(qr_folder, exist_ok=True)  # Utwórz katalog, jeśli nie istnieje
-            qr_path = os.path.join(qr_folder, f"table_{new_table_id}.png")
-            img.save(qr_path)
-
         db.session.commit()
-        flash(f'Dodano {table_count} nowe stoliki.', 'success')
+
+        # Generowanie jednego unikalnego kodu QR dla /choose_order_type
+        link = url_for('choose_order_type', _external=True)
+        img = generate_qr_code(link, "main")
+
+        # Zapis QR kodu do katalogu produkcyjnego
+        qr_folder = app.config['UPLOAD_FOLDER']
+        os.makedirs(qr_folder, exist_ok=True)
+        qr_path = os.path.join(qr_folder, "main_qr.png")
+        img.save(qr_path)
+
+        flash(f'Zaktualizowano liczbę stolików na {table_count} i wygenerowano nowy kod QR.', 'success')
         return redirect(url_for('add_tables'))
 
     # Pobierz wszystkie istniejące stoliki z bazy
@@ -737,6 +964,7 @@ def add_tables():
 @login_required
 @admin_required
 def add_events():
+    tables = Table.query.all()
     if request.method == 'POST':
         title = request.form['title']
         description = request.form['description']
@@ -769,7 +997,7 @@ def add_events():
         return redirect(url_for('add_events'))
 
     events = Event.query.order_by(Event.start_date.desc()).all()
-    return render_template('admin_add_events.html', events=events)
+    return render_template('admin_add_events.html', events=events, tables=tables)
 
 @app.route('/delete_event/<int:event_id>', methods=['POST'])
 @login_required
@@ -913,6 +1141,57 @@ def zamow_online():
 @app.route('/images/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/download_qr')
+@login_required
+@admin_required
+def download_qr():
+    qr_path = os.path.join(app.config['UPLOAD_FOLDER'], "main_qr.png")
+    if os.path.exists(qr_path):
+        return send_file(qr_path, as_attachment=True, download_name="restaurant_qr.png")
+    else:
+        flash('Kod QR nie istnieje', 'error')
+        return redirect(url_for('add_tables'))
+
+@app.route('/kitchen/accept_order/<int:order_id>', methods=['POST'])
+@login_required
+@employee_required
+def kitchen_accept_order(order_id):
+    try:
+        order = Order.query.get(order_id)
+        if order and order.status == 'Accepted':
+            order.status = 'In Preparation'
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Order marked as In Preparation'})
+        else:
+            return jsonify({'success': False, 'message': 'Order not found or invalid status'}), 404
+    except Exception as e:
+        print(f"Błąd podczas aktualizacji statusu zamówienia: {e}")
+        return jsonify({'success': False, 'message': 'Wystąpił błąd podczas aktualizacji statusu'}), 500
+
+@app.route('/kitchen/complete_order/<int:order_id>', methods=['POST'])
+@login_required
+@employee_required
+def kitchen_complete_order(order_id):
+    try:
+        order = Order.query.get(order_id)
+        if order and order.status == 'In Preparation':
+            order.status = 'Ready'
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Order marked as Ready'})
+        else:
+            return jsonify({'success': False, 'message': 'Order not found or invalid status'}), 404
+    except Exception as e:
+        print(f"Błąd podczas aktualizacji statusu zamówienia: {e}")
+        return jsonify({'success': False, 'message': 'Wystąpił błąd podczas aktualizacji statusu'}), 500
+
+@app.route('/check_order_status/<int:order_id>', methods=['GET'])
+def check_order_status(order_id):
+    order = Order.query.get_or_404(order_id)
+    return jsonify({
+        'status': order.status,
+        'estimated_completion_time': order.estimated_completion_time.isoformat() if order.estimated_completion_time else None
+    })
 
 # Inicjalizacja bazy danych i uruchomienie aplikacji
 if __name__ == '__main__':

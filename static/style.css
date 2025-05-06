@@ -96,6 +96,7 @@ h2 {
 
 input[type="text"],
 input[type="number"],
+input[type="tel"],
 input[type="password"],
 textarea,
 button {
@@ -371,6 +372,21 @@ button:hover {
 }
 
 .status-btn:hover {
+    background-color: #45a049;
+}
+
+.status-btn-secondary {
+    background-color: #F8F1E5;
+    color: #333;
+    padding: 10px 20px;
+    margin-top: 10px;
+    border: 1px solid #4CAF50;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.3s;
+}
+
+.status-btn-secondary:hover {
     background-color: #45a049;
 }
 
@@ -680,5 +696,85 @@ button:hover {
     
     .nav-link {
         margin: 10px 0;
+    }
+}
+
+/* Style dla elementów select */
+select {
+    width: 100%;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    background-color: #fff;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1em;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+select:hover {
+    border-color: #4CAF50;
+}
+
+select:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+select option {
+    padding: 0.5rem;
+    font-size: 1rem;
+    background-color: #fff;
+    color: #333;
+}
+
+select option:hover {
+    background-color: #f5f5f5;
+}
+
+select option:checked {
+    background-color: #4CAF50;
+    color: #fff;
+}
+
+/* Style dla select w formularzach */
+.form select {
+    margin-bottom: 1rem;
+}
+
+/* Style dla select w trybie ciemnym */
+.dark-mode select {
+    background-color: #333;
+    color: #fff;
+    border-color: #555;
+}
+
+.dark-mode select option {
+    background-color: #333;
+    color: #fff;
+}
+
+.dark-mode select option:hover {
+    background-color: #444;
+}
+
+.dark-mode select option:checked {
+    background-color: #4CAF50;
+    color: #fff;
+}
+
+/* Responsywność dla select */
+@media (max-width: 768px) {
+    select {
+        font-size: 16px; /* Zapobiega zoomowaniu na iOS */
+        padding: 0.5rem;
     }
 }

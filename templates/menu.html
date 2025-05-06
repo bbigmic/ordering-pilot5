@@ -4,100 +4,39 @@
 
 {% block content %}
 
-<h2 style="width:70%;">Składasz <br>zamówienie <br>do stolika nr {{ table_id }}</h2>
+    <div id="loading-screen">
+        <dotlottie-player 
+            src="https://lottie.host/f4b75356-5140-45e7-b457-088248399373/yYdDhNv5iu.lottie" 
+            background="transparent" 
+            speed="1" 
+            style="width: 300px; height: 300px" 
+            loop 
+            autoplay>
+        </dotlottie-player>
+    </div>
 
-<!-- Przycisk do rozwijania koszyka -->
-<button onclick="toggleCart()" id="cart-toggle-btn">
-    Pokaż Koszyk
-    <span id="cart-total-price" style="display: block; left: 20px;">0 PLN 🛒</span>
-</button>
+<div id="menu-content" style="display: none;">
+    <h2 style="width:70%;">Składasz <br>zamówienie <br>do stolika nr {{ table_id }}</h2>
 
-<h1>Menu</h1>
+    <!-- Przycisk do rozwijania koszyka -->
+    <button onclick="toggleCart()" id="cart-toggle-btn">
+        Pokaż Koszyk
+        <span id="cart-total-price" style="display: block; left: 20px;">0 PLN 🛒</span>
+    </button>
 
-<!-- Wyświetlanie Lunchu Dnia tylko jeśli display_date to dzisiejsza data -->
-{% if 'Lunch Dnia' in categories %}
-    {% set today = current_time.date() %}
-    {% set lunch_items = categories['Lunch Dnia'] | selectattr('display_date', 'equalto', today) | list %}
-    {% if lunch_items %}
-        <button class="accordion" onclick="toggleCategory(this)">
-            Lunch Dnia
-            <span class="arrow">&#9654;</span>
-        </button>
-        <div class="panel" style="display: none;">
-            {% for item in lunch_items %}
-                <div class="menu-item">
-                    {% if item.image_filename %}
-                        <img src="{{ url_for('uploaded_file', filename=item.image_filename) }}" alt="{{ item.name }}" class="menu-item-image">
-                    {% endif %}
-                    <h3>{{ item.name }}</h3>
-                    <p>{{ item.description }}</p>
-                    <p>Cena: {{ item.price }} PLN</p>
-                    {% if item.contains_alcohol %}
-                        <p class="warning">* Zawiera alkohol</p>
-                        <label for="age-confirm-{{ item.id }}">Oświadczam, że mam 18 lat:</label>
-                        <input type="checkbox" id="age-confirm-{{ item.id }}">
-                    {% endif %}
-                    {% if item.customizable %}
-                        <label>Uwagi do zamówienia:</label>
-                        <input type="text" id="customization-{{ item.id }}" placeholder='(opcjonalnie) np. "bez sosu"'>
-                    {% endif %}
-                    <label>
-                        <input type="checkbox" id="takeaway-{{ item.id }}"> Na wynos (+2.35 PLN)
-                    </label>
-                    <button id="add-to-cart-{{ item.id }}" onclick="addToCart({{ item.id }}, '{{ item.name }}', {{ item.price }}, {{ 'true' if item.contains_alcohol else 'false' }})">Dodaj</button>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
-{% endif %}
+    <h1>Menu</h1>
 
-<!-- Wyświetlanie Deseru Dnia tylko jeśli display_date to dzisiejsza data -->
-{% if 'Deser Dnia' in categories %}
-    {% set dessert_items = categories['Deser Dnia'] | selectattr('display_date', 'equalto', today) | list %}
-    {% if dessert_items %}
-        <button class="accordion" onclick="toggleCategory(this)">
-            Deser Dnia
-            <span class="arrow">&#9654;</span>
-        </button>
-        <div class="panel" style="display: none;">
-            {% for item in dessert_items %}
-                <div class="menu-item">
-                    {% if item.image_filename %}
-                        <img src="{{ url_for('uploaded_file', filename=item.image_filename) }}" alt="{{ item.name }}" class="menu-item-image">
-                    {% endif %}
-                    <h3>{{ item.name }}</h3>
-                    <p>{{ item.description }}</p>
-                    <p>Cena: {{ item.price }} PLN</p>
-                    {% if item.contains_alcohol %}
-                        <p class="warning">* Zawiera alkohol</p>
-                        <label for="age-confirm-{{ item.id }}">Oświadczam, że mam 18 lat:</label>
-                        <input type="checkbox" id="age-confirm-{{ item.id }}">
-                    {% endif %}
-                    {% if item.customizable %}
-                        <label>Uwagi do zamówienia:</label>
-                        <input type="text" id="customization-{{ item.id }}" placeholder='(opcjonalnie) np. "bez sosu"'>
-                    {% endif %}
-                    <label>
-                        <input type="checkbox" id="takeaway-{{ item.id }}"> Na wynos (+2.35 PLN)
-                    </label>
-                    <button id="add-to-cart-{{ item.id }}" onclick="addToCart({{ item.id }}, '{{ item.name }}', {{ item.price }}, {{ 'true' if item.contains_alcohol else 'false' }})">Dodaj</button>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
-{% endif %}
-
-<!-- Wyświetlanie pozostałych kategorii -->
-{% for category, items in categories.items() %}
-    {% if category not in ['Lunch Dnia', 'Deser Dnia'] %}
-        {% set available_items = items | selectattr('available', 'equalto', True) | list %}
-        {% if available_items %}
+    <!-- Wyświetlanie Lunchu Dnia tylko jeśli display_date to dzisiejsza data -->
+    {% if 'Lunch Dnia' in categories %}
+        {% set today = current_time.date() %}
+        {% set lunch_items = categories['Lunch Dnia'] | selectattr('display_date', 'equalto', today) | list %}
+        {% if lunch_items %}
             <button class="accordion" onclick="toggleCategory(this)">
-                {{ category }}
+                Lunch Dnia
                 <span class="arrow">&#9654;</span>
             </button>
             <div class="panel" style="display: none;">
-                {% for item in available_items %}
+                {% for item in lunch_items %}
                     <div class="menu-item">
                         {% if item.image_filename %}
                             <img src="{{ url_for('uploaded_file', filename=item.image_filename) }}" alt="{{ item.name }}" class="menu-item-image">
@@ -123,17 +62,91 @@
             </div>
         {% endif %}
     {% endif %}
-{% endfor %}
 
-<!-- Koszyk -->
-<div id="cart" class="cart">
-    <div class="cart-header">
-        <h3>Twój Koszyk</h3>
-    </div>
-    <ul id="cart-items"></ul>
-    <div class="cart-footer">
-        <p>Suma: <span id="cart-total">0</span> PLN</p>
-        <button onclick="submitOrder()">Zamów</button>
+    <!-- Wyświetlanie Deseru Dnia tylko jeśli display_date to dzisiejsza data -->
+    {% if 'Deser Dnia' in categories %}
+        {% set dessert_items = categories['Deser Dnia'] | selectattr('display_date', 'equalto', today) | list %}
+        {% if dessert_items %}
+            <button class="accordion" onclick="toggleCategory(this)">
+                Deser Dnia
+                <span class="arrow">&#9654;</span>
+            </button>
+            <div class="panel" style="display: none;">
+                {% for item in dessert_items %}
+                    <div class="menu-item">
+                        {% if item.image_filename %}
+                            <img src="{{ url_for('uploaded_file', filename=item.image_filename) }}" alt="{{ item.name }}" class="menu-item-image">
+                        {% endif %}
+                        <h3>{{ item.name }}</h3>
+                        <p>{{ item.description }}</p>
+                        <p>Cena: {{ item.price }} PLN</p>
+                        {% if item.contains_alcohol %}
+                            <p class="warning">* Zawiera alkohol</p>
+                            <label for="age-confirm-{{ item.id }}">Oświadczam, że mam 18 lat:</label>
+                            <input type="checkbox" id="age-confirm-{{ item.id }}">
+                        {% endif %}
+                        {% if item.customizable %}
+                            <label>Uwagi do zamówienia:</label>
+                            <input type="text" id="customization-{{ item.id }}" placeholder='(opcjonalnie) np. "bez sosu"'>
+                        {% endif %}
+                        <label>
+                            <input type="checkbox" id="takeaway-{{ item.id }}"> Na wynos (+2.35 PLN)
+                        </label>
+                        <button id="add-to-cart-{{ item.id }}" onclick="addToCart({{ item.id }}, '{{ item.name }}', {{ item.price }}, {{ 'true' if item.contains_alcohol else 'false' }})">Dodaj</button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endif %}
+
+    <!-- Wyświetlanie pozostałych kategorii -->
+    {% for category, items in categories.items() %}
+        {% if category not in ['Lunch Dnia', 'Deser Dnia'] %}
+            {% set available_items = items | selectattr('available', 'equalto', True) | list %}
+            {% if available_items %}
+                <button class="accordion" onclick="toggleCategory(this)">
+                    {{ category }}
+                    <span class="arrow">&#9654;</span>
+                </button>
+                <div class="panel" style="display: none;">
+                    {% for item in available_items %}
+                        <div class="menu-item">
+                            {% if item.image_filename %}
+                                <img src="{{ url_for('uploaded_file', filename=item.image_filename) }}" alt="{{ item.name }}" class="menu-item-image">
+                            {% endif %}
+                            <h3>{{ item.name }}</h3>
+                            <p>{{ item.description }}</p>
+                            <p>Cena: {{ item.price }} PLN</p>
+                            {% if item.contains_alcohol %}
+                                <p class="warning">* Zawiera alkohol</p>
+                                <label for="age-confirm-{{ item.id }}">Oświadczam, że mam 18 lat:</label>
+                                <input type="checkbox" id="age-confirm-{{ item.id }}">
+                            {% endif %}
+                            {% if item.customizable %}
+                                <label>Uwagi do zamówienia:</label>
+                                <input type="text" id="customization-{{ item.id }}" placeholder='(opcjonalnie) np. "bez sosu"'>
+                            {% endif %}
+                            <label>
+                                <input type="checkbox" id="takeaway-{{ item.id }}"> Na wynos (+2.35 PLN)
+                            </label>
+                            <button id="add-to-cart-{{ item.id }}" onclick="addToCart({{ item.id }}, '{{ item.name }}', {{ item.price }}, {{ 'true' if item.contains_alcohol else 'false' }})">Dodaj</button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+
+    <!-- Koszyk -->
+    <div id="cart" class="cart">
+        <div class="cart-header">
+            <h3>Twój Koszyk</h3>
+        </div>
+        <ul id="cart-items"></ul>
+        <div class="cart-footer">
+            <p>Suma: <span id="cart-total">0</span> PLN</p>
+            <button onclick="submitOrder()">Zamów</button>
+        </div>
     </div>
 </div>
 
@@ -146,6 +159,120 @@
         const panel = button.nextElementSibling;
         panel.style.display = panel.style.display === "none" ? "block" : "none";
     }
+</script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const menuContent = document.getElementById('menu-content');
+        const loadingScreen = document.getElementById('loading-screen');
+
+        // Jeśli table_id jest 0 lub null, pokazujemy menu bez weryfikacji
+        if (!{{ table_id }}) {
+            menuContent.style.display = "block";
+            loadingScreen.style.display = "none";
+            return;
+        }
+
+        function showLocationPrompt() {
+            return new Promise((resolve) => {
+                const modal = document.createElement('div');
+                const styles = {
+                    position: 'fixed',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    backgroundColor: 'white',
+                    padding: '20px',
+                    borderRadius: '10px',
+                    boxShadow: '0 0 10px rgba(0,0,0,0.5)',
+                    zIndex: '1000',
+                    maxWidth: '80%',
+                    textAlign: 'center'
+                };
+
+                Object.assign(modal.style, styles);
+
+                modal.innerHTML = `
+                    <h3 style="margin-bottom: 15px;">Weryfikacja lokalizacji</h3>
+                    <p style="margin-bottom: 20px;">Musimy zweryfikować czy jesteś w lokalu Papu Kitchen. Zezwól na lokalizację aby złożyć zamówienie.</p>
+                    <button style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">Rozumiem, przejdź dalej</button>
+                `;
+
+                const overlay = document.createElement('div');
+                const overlayStyles = {
+                    position: 'fixed',
+                    top: '0',
+                    left: '0',
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    zIndex: '999'
+                };
+
+                Object.assign(overlay.style, overlayStyles);
+
+                document.body.appendChild(overlay);
+                document.body.appendChild(modal);
+
+                const button = modal.querySelector('button');
+                button.addEventListener('click', () => {
+                    document.body.removeChild(modal);
+                    document.body.removeChild(overlay);
+                    resolve();
+                });
+            });
+        }
+
+        async function checkLocation() {
+            if ("geolocation" in navigator) {
+                await showLocationPrompt();
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        let lat = position.coords.latitude;
+                        let lon = position.coords.longitude;
+
+                        fetch('/check_location', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ latitude: lat, longitude: lon })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (!data.allowed) {
+                                alert("Nie jesteś w restauracji! Strona zostanie odświeżona.");
+                                setTimeout(() => {
+                                    window.location.href = "/";
+                                }, 3000);
+                            } else {
+                                menuContent.style.display = "block";
+                                loadingScreen.style.display = "none";
+                            }
+                        })
+                        .catch(error => {
+                            console.error("Błąd sprawdzania lokalizacji:", error);
+                            alert("Wystąpił problem. Strona zostanie odświeżona.");
+                            setTimeout(() => {
+                                window.location.href = "/";
+                            }, 3000);
+                        });
+                    },
+                    function(error) {
+                        alert("Musisz włączyć udostępnianie lokalizacji, aby zobaczyć menu.");
+                        setTimeout(() => {
+                            window.location.href = "/";
+                        }, 3000);
+                    }
+                );
+            } else {
+                alert("Twoja przeglądarka nie obsługuje geolokalizacji.");
+                setTimeout(() => {
+                    window.location.href = "/";
+                }, 3000);
+            }
+        }
+
+        checkLocation();
+    });
 </script>
 
 {% endblock %}

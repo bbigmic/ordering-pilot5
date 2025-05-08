@@ -3,17 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wybierz typ zamówienia</title>
+    <title>Wybierz Numer Stolika</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <h1>Wybierz typ zamówienia</h1>
-        <div class="order-type-options">
-            <a href="{{ url_for('choose_order_type') }}" class="order-type-button">
-                Zamów w restauracji
-            </a>
-        </div>
-    </div>
+<h1>Wybierz numer stolika</h1>
+
+<div class="form">
+    <h2>Zamówienie do stolika</h2>
+    <form onsubmit="event.preventDefault(); const tableId = document.getElementById('table_id').value; window.location.href = '/menu/' + tableId;">
+        <label for="table_id">Wybierz numer stolika:</label>
+        <select name="table_id" id="table_id" required>
+            {% for table in tables %}
+                <option value="{{ table.id }}">Stolik nr {{ table.id }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Przejdź do menu</button>
+    </form>
+</div>
+
 </body>
 </html>

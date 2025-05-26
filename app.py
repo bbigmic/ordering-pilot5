@@ -21,7 +21,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 load_dotenv()
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY", "defaultsecretkey")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -254,8 +254,8 @@ def check_location():
     # RESTAURANT_LON = 19.10046215844812
 
     #dom ngw
-        # RESTAURANT_LAT = 50.05538783157192
-        # RESTAURANT_LON = 21.467076217640532
+    # RESTAURANT_LAT = 50.05538783157192
+    # RESTAURANT_LON = 21.467076217640532
     # Współrzędne restauracji
     RESTAURANT_LAT = 50.83174207392536
     RESTAURANT_LON = 19.08261400134686
@@ -706,6 +706,8 @@ def place_order():
                 )
                 order.order_items.append(order_item)
                 total_price += menu_item.price * item['quantity']
+                if item.get('takeaway', False):
+                    total_price += 2.35  # Dodajemy opłatę za wynos
         
         order.total_price = total_price
         db.session.add(order)

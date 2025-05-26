@@ -8,7 +8,7 @@
 </head>
 <body>
     <!-- Pasek Nawigacyjny -->
-    {% if not request.path.startswith('/menu') and not request.path.startswith('/order_status') %}
+    {% if not request.path.startswith('/menu') and not request.path.startswith('/order_status') and not request.path.startswith('/waiter_view') and not request.path.startswith('/kitchen_view') %}
     <nav class="navbar">
         <div class="navbar-container">
 <!--             <a href="/menu/1" class="nav-link">Menu</a>

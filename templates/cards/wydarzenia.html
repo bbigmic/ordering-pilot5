@@ -33,7 +33,7 @@
 
     <section class="events-section">
         {% for event in events %}
-            <div class="event" style="background-image: url('{{ url_for('uploaded_file', filename=event.image) }}');">
+            <div class="event" style="background-image: url('{% if event.image %}{{ url_for('uploaded_file', filename=event.image) }}{% else %}/static/images/slider_no_event2.jpg{% endif %}');">
                 <h2>{{ event.title }}</h2>
                 <p>{{ event.description }}</p>
 <!--                 <p><strong>Data rozpoczęcia:</strong> {{ event.start_date.strftime('%Y-%m-%d') }}</p>

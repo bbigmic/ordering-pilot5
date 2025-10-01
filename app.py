@@ -20,8 +20,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv()
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
-#app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+#app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY", "defaultsecretkey")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -1203,5 +1203,5 @@ if __name__ == '__main__':
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
             img.save(qr_path)
     
-    app.run(host='0.0.0.0', port=5000)
-    #app.run(debug=True, port=5001)
+    #app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True, port=5001)

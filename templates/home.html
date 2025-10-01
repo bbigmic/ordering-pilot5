@@ -52,7 +52,7 @@
             
                 <!-- Slide for the Upcoming Event -->
         {% if upcoming_event and upcoming_event.start_date <= today <= upcoming_event.end_date %}
-            <div class="item-slider" style="background-image: url('{{ url_for('uploaded_file', filename=upcoming_event.image) }}');">
+            <div class="item-slider" style="background-image: url('{% if upcoming_event.image %}{{ url_for('uploaded_file', filename=upcoming_event.image) }}{% else %}/static/images/slider_no_event.jpg{% endif %}');">
                 <div class="event-info">
                 {% if upcoming_event.display_title %}
                     <h1>{{ upcoming_event.title }}</h1>
@@ -74,7 +74,7 @@
         {% endif %}
 
         {% if next_event %}
-            <div class="item-slider" style="background-image: url('{{ url_for('uploaded_file', filename=next_event.image) }}');">
+            <div class="item-slider" style="background-image: url('{% if next_event.image %}{{ url_for('uploaded_file', filename=next_event.image) }}{% else %}/static/images/slider_no_event2.jpg{% endif %}');">
                 <div class="event-info">
 
                     {% if next_event.display_title %}
